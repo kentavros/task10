@@ -12,6 +12,11 @@ class SQL
     protected $setProp;
     protected $queryProp;
     protected $flag;
+    protected $joinProp;
+    protected $groupProp;
+    protected $havingProp;
+    protected $orderProp;
+    protected $limitProp;
 
 
     /**
@@ -19,12 +24,19 @@ class SQL
      * @param $columName
      * @return $this
      */
-	public function select($columName)
+	public function select($columName, $distinct=false)
     {
        if ($columName !== '*')
        {
-           $this->selectProp = "SELECT \"".$columName."\""; //for work pg (" for class)
-           //$this->selectProp = "SELECT ".$columName; //for work pg (" for class)
+           if ('DISTINCT' == $distinct)
+           {
+               $this->selectProp = "SELECT DISTINCT ".$columName;
+           }
+           else
+           {
+//               $this->selectProp = "SELECT \"".$columName."\""; //for work pg (" for class)
+               $this->selectProp = "SELECT ".$columName; //for work pg (" for class)
+           }
            return $this;
        }
 
@@ -37,8 +49,8 @@ class SQL
      */
     public function from($tableName)
 	{
-		$this->fromProp = " FROM \"".$tableName."\"";//for work pg(" for class)
-//		$this->fromProp = " FROM ".$tableName;
+//		$this->fromProp = " FROM \"".$tableName."\"";//for work pg(" for class)
+		$this->fromProp = " FROM ".$tableName;
 		return $this;
 	}
 
@@ -48,17 +60,11 @@ class SQL
      * @param $tableName
      * @return $this
      */
-    public function where($val, $tableName){
-        if ($tableName == PG_TB_NAME)
-        {
-            $this->whereProp = " WHERE \"key\"="."'".$val."'";//for work pg(" for class)
-//            $this->whereProp = " WHERE key="."'".$val."'";
+    public function where( $val){
+
+//            $this->whereProp = " WHERE \"key\"="."'".$val."'";//for work pg(" for class)
+            $this->whereProp = " WHERE ".$val;
             return $this;
-        } else
-        {
-            $this->whereProp = " WHERE `key`="."'".$val."'";
-            return $this;
-        }
     }
 
     /**
@@ -70,8 +76,8 @@ class SQL
     {
         if ($tableName == PG_TB_NAME)
         {
-            $this->insertProp = "INSERT INTO \"".$tableName."\" (\"key\", \"data\")"; //for work pg(" for class)
-//            $this->insertProp = "INSERT INTO ".$tableName." (key, data)";
+//            $this->insertProp = "INSERT INTO \"".$tableName."\" (\"key\", \"data\")"; //for work pg(" for class)
+            $this->insertProp = "INSERT INTO ".$tableName." (key, data)";
             $this->flag = 1;
             return $this;
         }
@@ -113,8 +119,8 @@ class SQL
      */
     public function update($tableName)
     {
-        $this->updateProp = "UPDATE \"".$tableName."\""; //PROVERITb NA RABOTE!!!!!!
-//        $this->updateProp = "UPDATE ".$tableName; //PROVERITb NA RABOTE!!!!!!
+//        $this->updateProp = "UPDATE \"".$tableName."\""; //PROVERITb NA RABOTE!!!!!!
+        $this->updateProp = "UPDATE ".$tableName; //PROVERITb NA RABOTE!!!!!!
         $this->flag = 1;
         return $this;
     }
@@ -140,6 +146,43 @@ class SQL
         }
     }
 
+    public function join($typeJoin, $tbName, $id1 = false, $id2=false)
+    {
+        if(('CROSS' == $typeJoin) || ('NATURAL' == $typeJoin))
+        {
+            $this->joinProp = ' '.$typeJoin.' JOIN '.$tbName;
+        }
+        else
+        {
+            $this->joinProp = ' '.$typeJoin.' JOIN '.$tbName.' ON '.$id1.'='.$id2;
+        }
+        return $this;
+    }
+
+    public function group($columName)
+    {
+        $this->groupProp = ' GROUP BY '.$columName;
+        return $this;
+    }
+
+    public function having($agFun)
+    {
+        $this->havingProp = ' HAVING '.$agFun;
+        return $this;
+    }
+
+    public function order($field, $sortVal)
+    {
+        $this->orderProp = ' ORDER BY '.$field.' '.$sortVal;
+        return $this;
+    }
+
+    public function limit($rows)
+    {
+        $this->limitProp = ' LIMIT '.$rows;
+        return $this;
+    }
+
     /**
      * exec - create query
      * @return string
@@ -149,17 +192,68 @@ class SQL
 
         if (!empty($this->selectProp)) {
             if ((!empty($this->fromProp)) && (!empty($this->whereProp))) {
-                $this->queryProp = $this->selectProp . $this->fromProp . $this->whereProp;
+                if(empty($this->groupProp))
+                {
+                    $this->queryProp = $this->selectProp . $this->fromProp . $this->whereProp . $this->orderProp .$this->limitProp;
+                    $this->selectProp = null;
+                    $this->fromProp = null;
+                    $this->whereProp = null;
+                    $this->orderProp = null;
+                    $this->limitProp = null;
+                }
+                else
+                {
+                    $this->queryProp = $this->selectProp . $this->fromProp . $this->whereProp . $this->groupProp . $this->orderProp.$this->limitProp;
+                    $this->selectProp = null;
+                    $this->fromProp = null;
+                    $this->whereProp = null;
+                    $this->groupProp = null;
+                    $this->orderProp = null;
+                    $this->limitProp = null;
+                }
+                return $this->queryProp;
+            } elseif ((!empty($this->fromProp)) && (empty($this->joinProp))) {
+                if(empty($this->groupProp))
+                {
+                    $this->queryProp = $this->selectProp . $this->fromProp . $this->orderProp.$this->limitProp;
+                    $this->selectProp = null;
+                    $this->fromProp = null;
+                    $this->orderProp = null;
+                    $this->limitProp = null;
+                }
+                else
+                {
+                    if (empty($this->havingProp))
+                    {
+                        $this->queryProp = $this->selectProp . $this->fromProp . $this->groupProp . $this->orderProp;
+                        $this->selectProp = null;
+                        $this->fromProp = null;
+                        $this->groupProp = null;
+                        $this->orderProp = null;
+                    }
+                    else
+                    {
+                        $this->queryProp = $this->selectProp . $this->fromProp . $this->groupProp . $this->havingProp . $this->orderProp .$this->limitProp;
+                        $this->selectProp = null;
+                        $this->fromProp = null;
+                        $this->groupProp = null;
+                        $this->havingProp = null;
+                        $this->orderProp = null;
+                        $this->limitProp = null;
+                    }
+                }
+                return $this->queryProp;
+            }
+            elseif ((!empty($this->fromProp)) && (!empty($this->joinProp)))
+            {
+                $this->queryProp = $this->selectProp . $this->fromProp. $this->joinProp . $this->orderProp;
                 $this->selectProp = null;
                 $this->fromProp = null;
-                $this->whereProp = null;
+                $this->joinProp = null;
+                $this->orderProp = null;
                 return $this->queryProp;
-            } elseif (!empty($this->fromProp)) {
-                $this->queryProp = $this->selectProp . $this->fromProp;
-                $this->selectProp = null;
-                $this->fromProp = null;
-                return $this->queryProp;
-            } else {
+            }
+            else {
                 return NO_PROPERTIES;
             }
         }
@@ -172,11 +266,12 @@ class SQL
         }
         elseif ((!empty($this->deleteProp)) && (!empty($this->fromProp)) && (!empty($this->whereProp)))
         {
-            $this->queryProp = $this->deleteProp . $this->fromProp . $this->whereProp;
+            $this->queryProp = $this->deleteProp . $this->fromProp . $this->whereProp .$this->limitProp;
             $this->deleteProp = null;
             $this->fromProp = null;
             $this->whereProp = null;
-            
+            $this->limitProp = null;
+
             return $this->queryProp;
         }
         elseif ((!empty($this->updateProp)) && (!empty($this->setProp)) && (!empty($this->whereProp)))
